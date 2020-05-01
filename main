@@ -226,3 +226,143 @@ def send_id(users_data):
           "working with huge files.")
     return user_id, user_id_data
 
+
+def get_smaller_list(user_id, user_id_data, movie_data):
+    """Gets a smaller list of movies based on the max. or min. value of rating."""
+    new_user_id_data = list()
+    for item in user_id_data:
+        item = str(item)
+        new_user_id_data.append(item)
+
+    rate = ['3', '2']
+    index = 0
+
+    while len(new_user_id_data) >= 20 and index < 2:
+        for movie_id in user_id_data:
+            movie_id = str(movie_id)
+            movie_id_data = movie_data.get(movie_id)
+            original_user_rating = movie_id_data.get(user_id)
+            if original_user_rating == rate[index]:
+                new_user_id_data.remove(movie_id)
+
+        index += 1
+
+        if len(new_user_id_data) >= 15:
+            user_id_data = new_user_id_data
+
+    return user_id_data
+
+
+def search_list(user_for_comparing, top_index, bottom_index, user):
+    """Gets the user and tries to find him in the list."""
+    if bottom_index > top_index:
+        user_for_comparing.append(user)
+        user_for_comparing.sort()
+        return user_for_comparing
+
+    half = round((top_index + bottom_index) / 2)
+    list_user = user_for_comparing[half]
+    list_user = int(list_user)
+
+    if list_user == user:
+        return user_for_comparing
+
+    else:
+        if list_user < user:
+            bottom_index = half + 1
+            user_for_comparing = search_list(user_for_comparing, top_index, bottom_index, user)
+            return user_for_comparing
+
+        elif list_user > user:
+            top_index = half - 1
+            user_for_comparing = search_list(user_for_comparing, top_index, bottom_index, user)
+            return user_for_comparing
+
+
+def comparing_lists(user_id_data, user_data, max_count):
+    """Compares rate-lists and tries to find the ones with the most similar watched movies."""
+    count = 0
+
+    for i in user_id_data:
+        for j in user_data:
+            if i == j:
+                count += 1
+                user_data.remove(j)
+                break
+
+    if count >= max_count:
+        return True, count
+    else:
+        return False
+
+
+def create_matrix(users_for_comparing, user_id, movie_data, users_data):
+    """Creates a matrix user-movie based with the rating of the movie and shows an example."""
+    users_for_comparing.append(user_id)
+    movie_list = get_movie_list(users_for_comparing, users_data)
+
+    length1 = len(users_for_comparing)
+    length2 = len(movie_list)
+
+    matrix = [[0 for i in range(0, length2)] for j in range(0, length1)]
+
+    for index1, user in enumerate(users_for_comparing):
+        user = str(user)
+        for index2, movie in enumerate(movie_list):
+            movie_id_data = movie_data.get(movie)
+            rating = movie_id_data.get(user)
+            if rating is not None:
+                rating = int(rating)
+            matrix[index1][index2] = rating
+
+    example, x_name, y_name = example_matrix(users_for_comparing, movie_list, movie_data)
+
+    plt.matshow(example)
+    x_pos = np.arange(len(x_name))
+    plt.xticks(x_pos, x_name)
+    y_pos = np.arange(len(y_name))
+    plt.yticks(y_pos, y_name)
+    plt.title("Movie_ID/User_ID graph\n")
+    plt.show()
+
+    return matrix, movie_list, users_for_comparing
+
+
+def get_movie_list(user_for_comparing, users_data):
+    """Creates a list of all the movies that were rated by the users in the variable 'user_for_comparing'."""
+    movie_list = list()
+    for user in user_for_comparing:
+        user = str(user)
+        movies = users_data.get(user)
+        for movie in movies:
+            movie_list.append(movie)
+
+    movie_list = list(dict.fromkeys(movie_list))
+    movie_list = list(map(int, movie_list))
+    movie_list.sort()
+    movie_list = list(map(str, movie_list))
+
+    return movie_list
+
+
+def compute_most_similar_user(matrix, users_for_comparing, movie_list):
+    """Counts the most similar user."""
+    users_counts = list()
+    for user in range(0, len(users_for_comparing) - 2):
+        count = 0
+        for movie in range(0, len(movie_list)):
+            if (matrix[user][movie] is not None) and (matrix[len(matrix) - 1][movie] == matrix[user][movie]):
+                count += 1
+            elif matrix[user][movie] is not None:
+                if (matrix[user][movie] + 1 == matrix[len(matrix) - 1][movie]) \
+                        or (matrix[user][movie] - 1 == matrix[len(matrix) - 1][movie]):
+                    count += 1
+        users_counts.append(count)
+
+    user_with_max_count = 0
+    for i in range(0, len(users_counts)):
+        if users_counts[i] > users_counts[user_with_max_count]:
+            user_with_max_count = i
+    most_similar_user_id = users_for_comparing[user_with_max_count]
+
+    return most_similar_user_id
