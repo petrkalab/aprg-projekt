@@ -366,3 +366,216 @@ def compute_most_similar_user(matrix, users_for_comparing, movie_list):
     most_similar_user_id = users_for_comparing[user_with_max_count]
 
     return most_similar_user_id
+
+def create_recommendation(user_id, most_similar_user_id, users_data, movie_data):
+    """Creates a list of recommended movies."""
+    recommendation_list = list()
+    users_for_comparing = [user_id, most_similar_user_id]
+    movie_list = get_movie_list(users_for_comparing, users_data)
+    matrix = comparing_matrix(users_for_comparing, movie_data, movie_list)
+
+    for movie in range(0, len(movie_list)):
+        if (matrix[1][movie] == 5) and (matrix[0][movie] == 0):
+            recommendation_list.append(movie_list[movie])
+    if len(recommendation_list) <= 1:
+        for movie in range(0, len(movie_list)):
+            if (matrix[1][movie] == 4) and (matrix[0][movie] == 0):
+                recommendation_list.append(movie_list[movie])
+
+    return recommendation_list
+
+
+def get_movie_name(recommendation_list):
+    """Gets the names of the recommended movies."""
+    with open("movie_titles_rewritten.csv", "r") as file:
+        data = file.readlines()
+
+        movie_names = list()
+
+        for movie in recommendation_list:
+            for line in data:
+                count = 0
+                name = ""
+                index = ""
+                check = False
+
+                for char in line:
+                    if char != ";" and char != "\n":
+                        if count == 0:
+                            index = index + char
+                        if count == 1 and check:
+                            name = name + char
+
+                    elif char == "\n":
+                        movie_names.append(name)
+
+                    else:
+                        count += 1
+                        if index == movie:
+                            check = True
+                        else:
+                            break
+    return movie_names
+
+
+def printout(movie_names, user_id, similar_user_id):
+    """Prints the names of the recommended movies and shows graph with the most similar user."""
+    print("\nThese are the movies which might user '" + user_id + "' enjoy base on the user '" + str(similar_user_id) +
+          "' taste:")
+
+    line = ""
+    count = 0
+    first_in_line = True
+    for movie in movie_names:
+        if count == 5:
+            line = line + ","
+            print(line)
+            line = ""
+            count = 0
+            first_in_line = True
+        else:
+            if first_in_line:
+                line = line + movie
+                first_in_line = False
+            else:
+                line = line + ", " + movie
+            count += 1
+    if count != 0:
+        print(line)
+
+    return
+
+
+def example_matrix(users_for_comparing, movie_list, movie_data):
+    """Creates a matrix to show how the algorithm works."""
+    check = False
+
+    if len(users_for_comparing) < 10:
+        length1 = len(users_for_comparing)
+        users_for_comparing = list(map(str, users_for_comparing))
+        y_name = users_for_comparing
+    else:
+        length1 = 10
+        users_for_comparing = list(map(str, users_for_comparing))
+
+        check = True
+        y_name = list()
+        for index, user in enumerate(users_for_comparing):
+            if index < 10:
+                y_name.append("'%s'" % user)
+            else:
+                break
+
+    if len(movie_list) < 60:
+        length2 = len(movie_list)
+        movie_list = list(map(str, movie_list))
+        x_name = movie_list
+    else:
+        length2 = 60
+        x_name = list()
+        for index, movie in enumerate(movie_list):
+            if index < 60:
+                x_name.append("'%s'" % movie)
+            else:
+                break
+
+    example = [[0 for i in range(0, length2)] for j in range(0, length1)]
+
+    for index1, user in enumerate(users_for_comparing):
+        if index1 < length1:
+            user = str(user)
+            for index2, movie in enumerate(movie_list):
+                if index2 < length2:
+                    movie_id_data = movie_data.get(movie)
+                    rating = movie_id_data.get(user)
+                    if rating is not None:
+                        rating = int(rating)
+                        example[index1][index2] = rating
+                    else:
+                        example[index1][index2] = 0
+
+    if check:
+        user = users_for_comparing[len(users_for_comparing) - 1]
+        user = str(user)
+        y_name.append("'%s'" % user)
+
+        original_user = [0 for i in range(0, length2)]
+        for index, movie in enumerate(movie_list):
+            if index < length2:
+                movie_id_data = movie_data.get(movie)
+                rating = movie_id_data.get(user)
+                if rating is not None:
+                    rating = int(rating)
+                    original_user[index] = rating
+                else:
+                    original_user[index] = 0
+
+        example.append(original_user)
+
+    return example, x_name, y_name
+
+
+def comparing_matrix(users_for_comparing, movie_data, movie_list):
+    """Creates a final matrix user-movie based with the rating of the movie and shows an example."""
+    length1 = len(users_for_comparing)
+    length2 = len(movie_list)
+
+    matrix = [[0 for i in range(0, length2)] for j in range(0, length1)]
+
+    for index1, user in enumerate(users_for_comparing):
+        user = str(user)
+        for index2, movie in enumerate(movie_list):
+            movie_id_data = movie_data.get(movie)
+            rating = movie_id_data.get(user)
+            if rating is not None:
+                rating = int(rating)
+                matrix[index1][index2] = rating
+            else:
+                matrix[index1][index2] = 0
+
+    users_for_comparing = list(map(str, users_for_comparing))
+    movie_list = list(map(str, movie_list))
+
+    if length2 < 50:
+            length = len(length2)
+            example = matrix
+    else:
+        length = 50
+        new_list = list()
+        for index, movie in enumerate(movie_list):
+            if index < length:
+                new_list.append(movie)
+            else:
+                break
+
+        example = [[0 for i in range(0, length)] for j in range(0, length1)]
+
+        for i in range(0, length1):
+            for j in range(0, length):
+                example[i][j] = matrix[i][j]
+
+    plt.matshow(example)
+    x_pos = np.arange(length)
+    plt.xticks(x_pos, new_list)
+    y_pos = np.arange(length1)
+    plt.yticks(y_pos, users_for_comparing)
+    plt.title("Most similar user Movie_ID/User_ID graph\n")
+    plt.show()
+
+    return matrix
+
+
+def main():
+    """Drive code."""
+    print("Welcome to a script for recommending movies.")
+    print("Please, wait a second as the script is currently loading the necessary data.")
+    movie_data = load_data()
+    users_data = load_users(movie_data)
+    check()
+
+    get_data(movie_data, users_data)
+    print("\nThis is the end of this script, thank you and goodbye.")
+
+
+if __name__ == "__main__":
+    main()
