@@ -1,0 +1,228 @@
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def check():
+    """Checks whether file 'movie_titles_rewritten.csv' exists, if not creates it."""
+    try:
+        with open("movie_titles_rewritten.csv") as file:
+            print("\nFiles that are needed for this script exists.")
+
+    except IOError:
+        print("\nFile 'movie_titles_rewritten.csv' which is to be used is not accessible.")
+        print("Creating a new file called 'movie_titles_rewritten.csv'.")
+        movie_file()
+
+    return
+
+
+def movie_file():
+    """Creates a new file with movie titles."""
+    with open("movie_titles_rewritten.csv", "w+") as new_file:
+        with open("movie_titles.csv", "r") as file:
+            data = file.readlines()
+            movie_id = ""
+            name = ""
+
+            for line in data:
+                count = 0
+                for char in line:
+                    if count < 2:
+                        if char == ",":
+                            count += 1
+                        else:
+                            if count == 0:
+                                movie_id = movie_id + char
+                    else:
+                        if char != "\n":
+                            name = name + char
+                new_file.write("%s;%s\n" % (movie_id, name))
+                movie_id = ""
+                name = ""
+
+    return
+
+
+def data_file(index):
+    """Creates a file called 'data.json."""
+    with open("data.json", "w+") as new_file:
+
+        try:
+            with open("combined_data_%d.txt" % index, "r") as file:
+                data = file.readlines()
+                user_id = ""
+                rate = ""
+                first_time_check = True
+                first_time_check2 = True
+                new_file.write("{")
+
+                for line in data:
+                    if ":" in line:
+                        movie_id = int(line[:-2])
+                        if first_time_check:
+                            new_file.write('"%d"' % movie_id + ":{")
+                            first_time_check = False
+                        else:
+                            new_file.write('},\n"%d"' % movie_id + ":{")
+                            first_time_check2 = True
+
+                    else:
+                        count = 0
+                        for char in line:
+                            if char != ",":
+                                if count == 0:
+                                    user_id = user_id + char
+                                elif count == 1:
+                                    rate = char
+                                else:
+                                    break
+                            else:
+                                count += 1
+                        rate = int(rate)
+                        user_id = int(user_id)
+
+                        if first_time_check2:
+                            new_file.write('"%d":"%d"' % (user_id, rate))
+                            first_time_check2 = False
+                        else:
+                            new_file.write(', "%d":"%d"' % (user_id, rate))
+                        user_id = ""
+                        rate = ""
+                new_file.write("}}")
+
+        except IOError:
+            print("Such file does not exist!")
+            return False
+
+    return True
+
+
+def user_dict(data):
+    """Creates dictionary by users."""
+    movie_count = len(data)
+    users_dict = {}
+
+    for movie_id in range(1, movie_count):
+        movie_id = str(movie_id)
+        movie_id_data = data.get(movie_id)
+        users = movie_id_data.keys()
+
+        for user in users:
+            users_in_dict = users_dict.keys()
+            if user not in users_in_dict:
+                users_dict[user] = [movie_id]
+            else:
+                movie_id = int(movie_id)
+                users_dict[user].append('%s' % movie_id)
+
+    with open("users.json", "w+") as new_file:
+        json.dump(users_dict, new_file)
+
+    return
+
+
+def load_data():
+    """Loads 'data.json' or if necessary creates them."""
+    try:
+        with open("data.json", "r") as file:
+            string = file.read()
+            movie_data = json.loads(string)
+
+    except IOError:
+        result = False
+
+        while not result:
+            print("\nFile 'data.json' does not exist!")
+            answer = input("Please from numbers 1-4 (this symbolizes the number of file 'combined_data_x.txt): ")
+
+            while (answer != 1) or (answer != 2) or (answer != 3) or (answer != 4):
+                answer = input("Please choose from numbers 1-4 (this symbolizes the number of file "
+                               "'combined_data_x.txt): ")
+
+            print("Creating this file right now. It might take a while!")
+            index = int(answer)
+            result = data_file(index)
+
+        movie_data = load_data()
+
+    return movie_data
+
+
+def load_users(movie_data):
+    """Loads 'users.json'"""
+    try:
+        with open("users.json", "r") as file:
+            string = file.read()
+            users_data = json.loads(string)
+    except IOError:
+        print("\nFile 'users.json' does not exist!")
+        print("Creating this file right now. It might take a while!")
+        user_dict(movie_data)
+        users_data = load_users(movie_data)
+
+    return users_data
+
+
+def get_data(movie_data, users_data):
+    """Gets most similar users according to the most similar watch-lists and ratings."""
+    user_id, user_id_data = send_id(users_data)
+    users_for_comparing = list()
+    get_smaller_list(user_id, user_id_data, movie_data)
+    check = True
+    index = 0
+
+    while check and index < len(user_id_data):
+        movie_id = user_id_data[index]
+        movie_id_data = movie_data.get(movie_id)
+        if len(movie_id_data) >= 100:
+            check = False
+        original_user_rating = movie_id_data.get(user_id)
+
+        for user in movie_id_data:
+            if user != user_id:
+                rating = movie_id_data.get(user)
+                if rating == original_user_rating:
+                    user_data = users_data.get(user)
+                    get_smaller_list(user, user_data, movie_data)
+
+                    user = int(user)
+                    if not users_for_comparing:
+                        users_for_comparing.append(user)
+                        max_count = 0
+
+                    result = comparing_lists(user_id_data, user_data, max_count)
+
+                    if result:
+                        max_count = result[1]
+                        top_index = len(users_for_comparing) - 1
+                        bottom_index = 0
+                        users_for_comparing = search_list(users_for_comparing, top_index, bottom_index, user)
+        index += 1
+
+    matrix, movie_list, users_for_comparing = create_matrix(users_for_comparing, user_id, movie_data, users_data)
+    most_similar_user_id = compute_most_similar_user(matrix, users_for_comparing, movie_list)
+    recommendation_list = create_recommendation(user_id, most_similar_user_id, users_data,
+                                                movie_data)
+    movie_names = get_movie_name(recommendation_list)
+    printout(movie_names, user_id, most_similar_user_id)
+
+    return
+
+
+def send_id(users_data):
+    """Gets the ID of the user to whom is going to be made recommendation."""
+    user_id = input("\nPlease write here the ID of the user to whom should be the recommendation made (e.g. 822109, "
+                    "2165002,...): ")
+
+    user_id_data = users_data.get(user_id)
+
+    if user_id_data is None:
+        print("The user does not exist in our database!")
+        user_id, user_id_data = send_id(users_data)
+        return user_id, user_id_data
+
+    print("Thank you, the recommendations are currently being computed. This may take a while as the script might be"
+          "working with huge files.")
+    return user_id, user_id_data
+
